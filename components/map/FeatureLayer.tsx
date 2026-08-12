@@ -9,9 +9,19 @@ interface FeatureLayerProps {
   features: MapFeature[];
 }
 
+function safeIsStyleLoaded(map: maplibregl.Map): boolean {
+  try {
+    if (!map || !(map as unknown as { style?: unknown }).style) return false;
+    return Boolean(map.isStyleLoaded());
+  } catch {
+    return false;
+  }
+}
+
 function safeHasLayer(map: maplibregl.Map, id: string): boolean {
   try {
-    return Boolean(map.isStyleLoaded() && map.getStyle() && map.getLayer(id));
+    if (!safeIsStyleLoaded(map)) return false;
+    return Boolean(map.getLayer(id));
   } catch {
     return false;
   }
@@ -19,7 +29,8 @@ function safeHasLayer(map: maplibregl.Map, id: string): boolean {
 
 function safeHasSource(map: maplibregl.Map, id: string): boolean {
   try {
-    return Boolean(map.isStyleLoaded() && map.getStyle() && map.getSource(id));
+    if (!safeIsStyleLoaded(map)) return false;
+    return Boolean(map.getSource(id));
   } catch {
     return false;
   }
@@ -47,7 +58,7 @@ function safeRemoveSource(map: maplibregl.Map, id: string) {
  */
 export function FeatureLayer({ map, features }: FeatureLayerProps) {
   useEffect(() => {
-    if (!map || features.length === 0 || !map.isStyleLoaded() || !map.getStyle()) return;
+    if (!map || features.length === 0 || !safeIsStyleLoaded(map)) return;
 
     const sourceId = "map-features-source";
     const lineLayerId = "map-features-line";

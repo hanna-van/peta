@@ -10,9 +10,19 @@ interface BoundaryDrawerProps {
   onBoundaryChange: (polygon: GeoJSON.Polygon | null) => void;
 }
 
+function safeIsStyleLoaded(map: maplibregl.Map): boolean {
+  try {
+    if (!map || !(map as unknown as { style?: unknown }).style) return false;
+    return Boolean(map.isStyleLoaded());
+  } catch {
+    return false;
+  }
+}
+
 function safeHasLayer(map: maplibregl.Map, id: string): boolean {
   try {
-    return Boolean(map.isStyleLoaded() && map.getStyle() && map.getLayer(id));
+    if (!safeIsStyleLoaded(map)) return false;
+    return Boolean(map.getLayer(id));
   } catch {
     return false;
   }
@@ -20,7 +30,8 @@ function safeHasLayer(map: maplibregl.Map, id: string): boolean {
 
 function safeHasSource(map: maplibregl.Map, id: string): boolean {
   try {
-    return Boolean(map.isStyleLoaded() && map.getStyle() && map.getSource(id));
+    if (!safeIsStyleLoaded(map)) return false;
+    return Boolean(map.getSource(id));
   } catch {
     return false;
   }
@@ -98,7 +109,7 @@ export function BoundaryDrawer({
 
   // Render polygon & points layer on map
   useEffect(() => {
-    if (!map || !map.isStyleLoaded() || !map.getStyle()) return;
+    if (!map || !safeIsStyleLoaded(map)) return;
 
     const sourceId = "boundary-drawer-source";
     const lineLayerId = "boundary-drawer-line";
