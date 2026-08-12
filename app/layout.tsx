@@ -7,7 +7,6 @@ export const metadata: Metadata = {
   description:
     "Platform latihan orienteering — pilih peta, buat jalur, navigasi, analisis.",
   robots: "noindex, nofollow", // Private training app
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
