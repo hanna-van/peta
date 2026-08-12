@@ -135,14 +135,27 @@ export default function HasilDetailPage({
           zIndex: 80,
         }}
       >
-        <div>
-          <h1 className="text-section">Hasil Latihan</h1>
-          <p className="text-helper">
-            {session.duration_seconds
-              ? formatDuration(session.duration_seconds)
-              : "Selesai"}{" "}
-            • {session.distance_m ? formatDistance(session.distance_m) : "0 m"}
-          </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+          <div>
+            <h1 className="text-section">Hasil Latihan</h1>
+            <p className="text-helper">
+              {session.duration_seconds
+                ? formatDuration(session.duration_seconds)
+                : "Selesai"}{" "}
+              • {session.distance_m ? formatDistance(session.distance_m) : "0 m"}
+            </p>
+          </div>
+          
+          <button 
+            className="btn btn-secondary btn-sm"
+            onClick={async () => {
+              const { generateGpx, downloadFile } = await import("@/lib/gpx");
+              const gpxData = generateGpx(`Orienteering ${new Date(session.created_at).toLocaleDateString()}`, tracks, course || undefined, controls);
+              downloadFile(`orienteering_${session.id.slice(0,8)}.gpx`, gpxData);
+            }}
+          >
+            ⬇ Export GPX
+          </button>
         </div>
 
         {/* Tab Switcher */}
