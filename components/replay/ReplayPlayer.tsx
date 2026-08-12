@@ -309,9 +309,10 @@ export function ReplayPlayer({ map, tracks, visits, controls }: ReplayPlayerProp
         <button
           className="btn btn-primary btn-lg"
           onClick={() => setIsPlaying(!isPlaying)}
-          style={{ flex: 1, height: 48 }}
+          disabled={tracks.length === 0}
+          style={{ flex: 1, height: 48, opacity: tracks.length === 0 ? 0.5 : 1 }}
         >
-          {isPlaying ? "⏸ Pause" : "▶ Putar"}
+          {tracks.length === 0 ? "Tidak ada rekaman GPS" : isPlaying ? "⏸ Pause" : "▶ Putar"}
         </button>
 
         {/* Speed Selector */}

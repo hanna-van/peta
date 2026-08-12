@@ -301,11 +301,17 @@ export default function ActiveTrainingPage({
   const gpsBadgeClass = gpsAccuracy <= 15 ? "badge-success" : gpsAccuracy <= 50 ? "badge-warning" : "badge-error";
   const gpsText = gpsAccuracy <= 15 ? "GPS Kuat" : gpsAccuracy <= 50 ? "GPS Sedang" : "Mencari GPS";
 
+  const centerLatLng = controls.length > 0
+    ? { lat: controls[0].point.coordinates[1], lng: controls[0].point.coordinates[0] }
+    : undefined;
+
   return (
     <div style={{ height: "100dvh", width: "100vw", position: "relative" }}>
       {/* Fullscreen Map Canvas */}
       <MapView
+        initialCenter={centerLatLng}
         initialZoom={16}
+        onMapReady={setMapInstance}
         showUserLocation
         fullscreen
       >
