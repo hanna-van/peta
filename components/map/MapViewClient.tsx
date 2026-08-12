@@ -30,6 +30,7 @@ export function MapViewClient({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const hasAttemptedIpLocation = useRef(false);
 
   const initMap = useCallback(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -71,7 +72,13 @@ export function MapViewClient({
       setMapLoaded(true);
       onMapReady?.(map);
 
-      if (initialCenter.lat === -6.2088 && initialCenter.lng === 106.8456) {
+      // Attempt IP location fallback once if default center
+      if (
+        !hasAttemptedIpLocation.current &&
+        initialCenter.lat === -6.2088 &&
+        initialCenter.lng === 106.8456
+      ) {
+        hasAttemptedIpLocation.current = true;
         try {
           const { IpLocationProvider } = await import("@/lib/providers/ipinfo");
           const ipResult = await IpLocationProvider.getCurrentLocation();
