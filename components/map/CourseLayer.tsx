@@ -99,26 +99,35 @@ export function CourseLayer({
           const poly = bboxPolygon(bbx);
           const bufferedPoly = buffer(poly, 0.2, { units: "kilometers" }); // 200m buffer
           
-          if (bufferedPoly && bufferedPoly.geometry && bufferedPoly.geometry.coordinates) {
-            const holeRing = bufferedPoly.geometry.coordinates[0];
-            // Donut polygon: world exterior ring + course interior ring (hole)
-            maskFeature = {
-              type: "Feature",
-              properties: {},
-              geometry: {
-                type: "Polygon",
-                coordinates: [
-                  [
-                    [-180, -90],
-                    [180, -90],
-                    [180, 90],
-                    [-180, 90],
-                    [-180, -90],
+          if (bufferedPoly && bufferedPoly.geometry) {
+            let holeRing: GeoJSON.Position[] = [];
+            
+            if (bufferedPoly.geometry.type === "Polygon") {
+              holeRing = bufferedPoly.geometry.coordinates[0];
+            } else if (bufferedPoly.geometry.type === "MultiPolygon") {
+              holeRing = bufferedPoly.geometry.coordinates[0][0];
+            }
+
+            if (holeRing.length > 0) {
+              // Donut polygon: world exterior ring + course interior ring (hole)
+              maskFeature = {
+                type: "Feature",
+                properties: {},
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [-180, -90],
+                      [180, -90],
+                      [180, 90],
+                      [-180, 90],
+                      [-180, -90],
+                    ],
+                    holeRing,
                   ],
-                  holeRing,
-                ],
-              },
-            };
+                },
+              };
+            }
           }
         } catch (e) {
           console.warn("Failed to generate mask", e);
