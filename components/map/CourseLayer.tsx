@@ -123,7 +123,9 @@ export function CourseLayer({
       });
 
       const iofMagenta = "#D400D4";
-      const iofMagentaActive = "#FF00FF";
+      const iofMagentaActive = "#00FFFF"; // High-contrast glowing cyan for active CP
+      const iofMagentaFill = "rgba(212, 0, 212, 0.15)";
+      const activeFill = "rgba(0, 255, 255, 0.25)";
 
       // Course Line
       map.addLayer({
@@ -133,8 +135,8 @@ export function CourseLayer({
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
           "line-color": iofMagenta,
-          "line-width": 4,
-          "line-opacity": 0.85,
+          "line-width": 3,
+          "line-opacity": 0.6,
         },
       });
 
@@ -153,7 +155,14 @@ export function CourseLayer({
             18,
             16,
           ],
-          "circle-color": "transparent",
+          "circle-color": [
+            "case",
+            ["get", "isStart"],
+            "transparent",
+            ["get", "isActive"],
+            activeFill,
+            iofMagentaFill,
+          ],
           "circle-stroke-width": 4,
           "circle-stroke-color": [
             "case",
@@ -178,7 +187,7 @@ export function CourseLayer({
         filter: ["all", ["==", ["geometry-type"], "Point"], ["==", ["get", "isFinish"], true]],
         paint: {
           "circle-radius": 10,
-          "circle-color": "transparent",
+          "circle-color": iofMagentaFill,
           "circle-stroke-width": 4,
           "circle-stroke-color": iofMagenta,
         },
@@ -203,9 +212,10 @@ export function CourseLayer({
             "case",
             ["get", "isStart"],
             ["literal", [0, -0.15]], // Center the triangle
-            ["literal", [1.3, -1.3]], // Offset the numbers
+            ["literal", [1.1, -1.1]], // Offset the numbers tighter
           ],
           "text-allow-overlap": true,
+          "text-ignore-placement": true,
         },
         paint: {
           "text-color": [
