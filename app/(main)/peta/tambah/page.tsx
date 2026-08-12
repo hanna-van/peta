@@ -2,8 +2,6 @@
 
 import dynamic from "next/dynamic";
 
-export const dynamicMode = "force-dynamic";
-
 const TambahPetaContent = dynamic(() => import("./TambahPetaContent"), {
   ssr: false,
   loading: () => (

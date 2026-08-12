@@ -393,7 +393,7 @@ export default function ActiveTrainingPage({
         ) : sessionState.status === "active" ? (
           <button
             className={`btn ${isLastCp ? "btn-danger" : "btn-primary"} btn-lg btn-full`}
-            onClick={handleConfirmControl}
+            onClick={() => handleConfirmControl("manual")}
             style={{ fontSize: "1.25rem", height: 64, boxShadow: "var(--shadow-lg)" }}
           >
             {isLastCp ? "✔ Pos Terakhir & Selesai!" : `✔ Confirm Pos CP ${currentCpIndex}`}

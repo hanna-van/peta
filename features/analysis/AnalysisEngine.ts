@@ -86,6 +86,26 @@ export class AnalysisEngine {
             )
           : legDistM;
 
+      // Calculate Pace
+      let paceStr: string | null = null;
+      if (legDistM > 10) {
+        const legSpeedMps = legDistM / legDurationS;
+        if (legSpeedMps > 0.1) {
+          const speedKmh = legSpeedMps * 3.6;
+          const paceDec = 60 / speedKmh;
+          const paceMin = Math.floor(paceDec);
+          const paceSec = Math.floor((paceDec - paceMin) * 60).toString().padStart(2, "0");
+          if (paceMin < 60) paceStr = `${paceMin}:${paceSec}`;
+        }
+      }
+
+      // Calculate Efficiency
+      let efficiencyPct: number | null = null;
+      if (straightLineM > 10 && legDistM > 0) {
+        efficiencyPct = Math.round((straightLineM / legDistM) * 100);
+        if (efficiencyPct > 100) efficiencyPct = 100;
+      }
+
       // Detect potential deviation (if actual distance > 1.4x straight line)
       let potentialIssue: string | null = null;
       let coachingNote: string | null = null;
@@ -122,26 +142,6 @@ export class AnalysisEngine {
         }
       } else {
         coachingNote = "Navigasi leg berjalan sangat lancar dan efisien.";
-      }
-
-      // Calculate Pace
-      let paceStr: string | null = null;
-      if (legDistM > 10) {
-        const legSpeedMps = legDistM / legDurationS;
-        if (legSpeedMps > 0.1) {
-          const speedKmh = legSpeedMps * 3.6;
-          const paceDec = 60 / speedKmh;
-          const paceMin = Math.floor(paceDec);
-          const paceSec = Math.floor((paceDec - paceMin) * 60).toString().padStart(2, "0");
-          if (paceMin < 60) paceStr = `${paceMin}:${paceSec}`;
-        }
-      }
-
-      // Calculate Efficiency
-      let efficiencyPct: number | null = null;
-      if (straightLineM > 10 && legDistM > 0) {
-        efficiencyPct = Math.round((straightLineM / legDistM) * 100);
-        if (efficiencyPct > 100) efficiencyPct = 100;
       }
 
       legs.push({
