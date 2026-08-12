@@ -22,7 +22,7 @@ export function getTileSource(): TileSource {
     };
   }
 
-  // Fallback: free OSM raster tiles (no key required)
+  // Fallback: free OSM raster tiles with reliable tile mirrors
   return {
     id: "osm-raster",
     name: "OpenStreetMap",

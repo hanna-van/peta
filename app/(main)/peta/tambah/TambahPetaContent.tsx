@@ -135,11 +135,12 @@ export default function TambahPetaContent() {
             bottom: 0,
             left: 0,
             right: 0,
-            zIndex: 60,
+            zIndex: 100,
+            pointerEvents: "auto",
             padding: "var(--space-4)",
-            backgroundColor: "rgba(17, 24, 39, 0.95)",
+            backgroundColor: "rgba(17, 24, 39, 0.98)",
             backdropFilter: "blur(12px)",
-            borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+            borderTop: "1px solid rgba(255, 255, 255, 0.15)",
             borderTopLeftRadius: "var(--radius-lg)",
             borderTopRightRadius: "var(--radius-lg)",
           }}
@@ -153,6 +154,7 @@ export default function TambahPetaContent() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                style={{ zIndex: 110, position: "relative" }}
               />
             </div>
 
@@ -163,6 +165,7 @@ export default function TambahPetaContent() {
                 placeholder="Keterangan singkat (opsional)"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                style={{ zIndex: 110, position: "relative" }}
               />
             </div>
 

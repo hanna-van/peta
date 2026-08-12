@@ -454,6 +454,11 @@ body {
   height: 100%;
 }
 
+.map-container .maplibregl-map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .map-container-fullscreen {
   position: fixed;
   top: 0;
