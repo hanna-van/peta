@@ -22,16 +22,16 @@ export function getTileSource(): TileSource {
     };
   }
 
-  // Reliable free vector style (CARTO Voyager GL)
+  // OpenTopoMap fallback (excellent for outdoors/orienteering)
   return {
-    id: "carto-voyager",
-    name: "CARTO Voyager",
-    type: "vector",
-    url: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+    id: "opentopomap",
+    name: "OpenTopoMap",
+    type: "raster",
+    url: "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
     attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxZoom: 20,
-    minZoom: 0,
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+    maxZoom: 17,
+    minZoom: 2,
   };
 }
 
@@ -54,14 +54,13 @@ export function getMapStyle(): string | object {
       "osm-raster": {
         type: "raster",
         tiles: [
-          "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-          "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-          "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
-          "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+          "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+          "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
+          "https://c.tile.opentopomap.org/{z}/{x}/{y}.png",
         ],
         tileSize: 256,
         attribution: source.attribution,
-        maxzoom: 19,
+        maxzoom: 17,
       },
     },
     layers: [

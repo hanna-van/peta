@@ -76,6 +76,7 @@ export function CourseLayer({
 
     try {
       safeRemoveLayer(map, labelLayerId);
+      safeRemoveLayer(map, "course-finish-inner-layer");
       safeRemoveLayer(map, activeCircleLayerId);
       safeRemoveLayer(map, circleLayerId);
       safeRemoveLayer(map, lineLayerId);
@@ -104,9 +105,9 @@ export function CourseLayer({
               sequence: c.sequence,
               label:
                 c.sequence === 0
-                  ? "S"
+                  ? "▲"
                   : c.sequence === controls.length - 1
-                    ? "F"
+                    ? ""
                     : String(c.sequence),
               isStart: c.sequence === 0,
               isFinish: c.sequence === controls.length - 1,
@@ -121,6 +122,9 @@ export function CourseLayer({
         data: geojson,
       });
 
+      const iofMagenta = "#D400D4";
+      const iofMagentaActive = "#FF00FF";
+
       // Course Line
       map.addLayer({
         id: lineLayerId,
@@ -128,13 +132,13 @@ export function CourseLayer({
         source: sourceId,
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": "#c084fc",
-          "line-width": 3.5,
-          "line-opacity": 0.9,
+          "line-color": iofMagenta,
+          "line-width": 4,
+          "line-opacity": 0.85,
         },
       });
 
-      // Control Circles
+      // Control Outer Circles
       map.addLayer({
         id: circleLayerId,
         type: "circle",
@@ -144,28 +148,43 @@ export function CourseLayer({
           "circle-radius": [
             "case",
             ["get", "isStart"],
-            10,
+            0,
             ["get", "isFinish"],
-            14,
-            12,
+            18,
+            16,
           ],
           "circle-color": "transparent",
-          "circle-stroke-width": [
-            "case",
-            ["get", "isFinish"],
-            4,
-            3,
-          ],
+          "circle-stroke-width": 4,
           "circle-stroke-color": [
             "case",
             ["get", "isActive"],
-            "#f59e0b",
-            "#c084fc",
+            iofMagentaActive,
+            iofMagenta,
+          ],
+          "circle-stroke-opacity": [
+            "case",
+            ["get", "isStart"],
+            0,
+            1,
           ],
         },
       });
 
-      // Sequence Labels
+      // Finish Inner Circle (Double Circle)
+      map.addLayer({
+        id: "course-finish-inner-layer",
+        type: "circle",
+        source: sourceId,
+        filter: ["all", ["==", ["geometry-type"], "Point"], ["==", ["get", "isFinish"], true]],
+        paint: {
+          "circle-radius": 10,
+          "circle-color": "transparent",
+          "circle-stroke-width": 4,
+          "circle-stroke-color": iofMagenta,
+        },
+      });
+
+      // Sequence Labels & Start Triangle
       map.addLayer({
         id: labelLayerId,
         type: "symbol",
@@ -173,15 +192,35 @@ export function CourseLayer({
         filter: ["==", ["geometry-type"], "Point"],
         layout: {
           "text-field": ["get", "label"],
-          "text-size": 14,
+          "text-size": [
+            "case",
+            ["get", "isStart"],
+            42, // Large triangle
+            24, // Normal numbers
+          ],
           "text-font": ["Metropolis Bold", "Noto Sans Bold"],
-          "text-offset": [1.2, -1.2],
+          "text-offset": [
+            "case",
+            ["get", "isStart"],
+            ["literal", [0, -0.15]], // Center the triangle
+            ["literal", [1.3, -1.3]], // Offset the numbers
+          ],
           "text-allow-overlap": true,
         },
         paint: {
-          "text-color": "#ffffff",
-          "text-halo-color": "#0a0e17",
-          "text-halo-width": 2,
+          "text-color": [
+            "case",
+            ["get", "isActive"],
+            iofMagentaActive,
+            iofMagenta,
+          ],
+          "text-halo-color": "#ffffff",
+          "text-halo-width": [
+            "case",
+            ["get", "isStart"],
+            0, // No halo for start triangle
+            3, // Thick white halo for numbers
+          ],
         },
       });
     } catch {
@@ -191,6 +230,7 @@ export function CourseLayer({
     return () => {
       if (!map) return;
       safeRemoveLayer(map, labelLayerId);
+      safeRemoveLayer(map, "course-finish-inner-layer");
       safeRemoveLayer(map, activeCircleLayerId);
       safeRemoveLayer(map, circleLayerId);
       safeRemoveLayer(map, lineLayerId);
