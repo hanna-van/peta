@@ -17,6 +17,7 @@ export interface CreateMapAreaInput {
   description?: string;
   boundary: GeoJSON.Polygon;
   sourceType?: MapSourceType;
+  metadata?: Record<string, any>;
 }
 
 export class MapAreaService {
@@ -135,6 +136,7 @@ export class MapAreaService {
             boundary: input.boundary,
             center: centerPoint,
             source_type: input.sourceType || "osm",
+            metadata: input.metadata || {},
           })
           .select()
           .single();
@@ -159,7 +161,7 @@ export class MapAreaService {
         center: centerPoint,
         source_type: input.sourceType || "osm",
         map_version: "1.0",
-        metadata: {},
+        metadata: input.metadata || {},
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };

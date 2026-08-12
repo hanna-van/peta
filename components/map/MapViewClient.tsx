@@ -17,8 +17,10 @@ export interface MapViewProps {
   children?: React.ReactNode;
 }
 
+const DEFAULT_CENTER: LatLng = { lat: -6.2088, lng: 106.8456 };
+
 export function MapViewClient({
-  initialCenter = { lat: -6.2088, lng: 106.8456 },
+  initialCenter = DEFAULT_CENTER,
   initialZoom = 14,
   showUserLocation = false,
   fullscreen = false,
@@ -32,6 +34,9 @@ export function MapViewClient({
   const [mapLoaded, setMapLoaded] = useState(false);
   const hasAttemptedIpLocation = useRef(false);
 
+  const stableCenter = useRef(initialCenter).current;
+  const stableZoom = useRef(initialZoom).current;
+
   const initMap = useCallback(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -40,8 +45,8 @@ export function MapViewClient({
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: style as string | maplibregl.StyleSpecification,
-      center: [initialCenter.lng, initialCenter.lat],
-      zoom: initialZoom,
+      center: [stableCenter.lng, stableCenter.lat],
+      zoom: stableZoom,
       attributionControl: {},
       maxZoom: 20,
       minZoom: 2,
@@ -107,7 +112,7 @@ export function MapViewClient({
     });
 
     mapRef.current = map;
-  }, [initialCenter, initialZoom, showUserLocation, onMapReady, onViewChange]);
+  }, [stableCenter, stableZoom, showUserLocation, onMapReady, onViewChange]);
 
   useEffect(() => {
     initMap();

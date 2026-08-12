@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type maplibregl from "maplibre-gl";
 import type { LatLng } from "@/types/map";
-
+import { area } from "@turf/turf";
 interface BoundaryDrawerProps {
   map: maplibregl.Map | null;
   active: boolean;
@@ -63,6 +63,7 @@ export function BoundaryDrawer({
   onBoundaryChange,
 }: BoundaryDrawerProps) {
   const [points, setPoints] = useState<LatLng[]>([]);
+  const [areaHa, setAreaHa] = useState<number>(0);
 
   const handleMapClick = useCallback(
     (e: maplibregl.MapMouseEvent) => {
@@ -74,18 +75,44 @@ export function BoundaryDrawer({
         if (next.length >= 3) {
           // Construct closed polygon
           const coords = [...next, next[0]].map((p) => [p.lng, p.lat]);
-          onBoundaryChange({
+          const polygon: GeoJSON.Polygon = {
             type: "Polygon",
             coordinates: [coords],
-          });
+          };
+          onBoundaryChange(polygon);
+          
+          // Calculate area in Hectares
+          const sqMeters = area(polygon);
+          setAreaHa(sqMeters / 10000);
         } else {
           onBoundaryChange(null);
+          setAreaHa(0);
         }
         return next;
       });
     },
     [active, onBoundaryChange]
   );
+
+  const undoLastPoint = useCallback(() => {
+    setPoints((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.slice(0, -1);
+      if (next.length >= 3) {
+        const coords = [...next, next[0]].map((p) => [p.lng, p.lat]);
+        const polygon: GeoJSON.Polygon = {
+          type: "Polygon",
+          coordinates: [coords],
+        };
+        onBoundaryChange(polygon);
+        setAreaHa(area(polygon) / 10000);
+      } else {
+        onBoundaryChange(null);
+        setAreaHa(0);
+      }
+      return next;
+    });
+  }, [onBoundaryChange]);
 
   // Map click listener
   useEffect(() => {
@@ -210,6 +237,7 @@ export function BoundaryDrawer({
 
   const reset = () => {
     setPoints([]);
+    setAreaHa(0);
     onBoundaryChange(null);
   };
 
@@ -237,16 +265,25 @@ export function BoundaryDrawer({
       <span>
         {points.length === 0
           ? "Ketuk pada peta untuk menandai sudut area (min. 3 titik)"
-          : `Sudut ditandai: ${points.length} ${points.length < 3 ? "(butuh min. 3)" : ""}`}
+          : `Sudut ditandai: ${points.length} ${points.length < 3 ? "(butuh min. 3)" : `— Luas: ${areaHa.toFixed(2)} Ha`}`}
       </span>
       {points.length > 0 && (
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={reset}
-          style={{ color: "var(--color-error)", padding: "0 var(--space-2)" }}
-        >
-          Reset
-        </button>
+        <div style={{ display: "flex", gap: "var(--space-1)" }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={undoLastPoint}
+            style={{ padding: "0 var(--space-2)" }}
+          >
+            Undo
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={reset}
+            style={{ color: "var(--color-error)", padding: "0 var(--space-2)" }}
+          >
+            Reset
+          </button>
+        </div>
       )}
     </div>
   );

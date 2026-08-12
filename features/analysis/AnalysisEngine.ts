@@ -90,23 +90,58 @@ export class AnalysisEngine {
       let potentialIssue: string | null = null;
       let coachingNote: string | null = null;
 
-      if (straightLineM > 50 && legDistM > straightLineM * 1.4) {
-        const timeLossEst = Math.round(legDurationS * (1 - straightLineM / legDistM));
-        potentialIssue = "Potensi keluar jalur — kepercayaan sedang";
-        coachingNote = `Rute yang ditempuh lebih panjang dari garis lurus. Perkiraan waktu terbuang: ±${Math.floor(
-          timeLossEst / 60
-        )}:${(timeLossEst % 60).toString().padStart(2, "0")}.`;
+      const timeLossEst = Math.round(legDurationS * (1 - straightLineM / Math.max(legDistM, 1)));
+      const legSpeedMps = legDistM / Math.max(legDurationS, 1);
 
-        events.push({
-          timestamp: new Date((prevVisitTime + legFinishTime) / 2).toISOString(),
-          leg: i + 1,
-          type: "potential_deviation",
-          confidence: "medium",
-          reason: "Deviasi rute terdeteksi dari perbandingan jarak lurus",
-          estimated_impact_s: timeLossEst,
-        });
+      if (straightLineM > 50 && efficiencyPct !== null && efficiencyPct < 85) {
+        if (legSpeedMps > 2.0 && efficiencyPct < 75) {
+          potentialIssue = "Bearing Error — Kepercayaan Tinggi";
+          coachingNote = `Anda berlari cukup cepat (${paceStr}/km) namun melenceng jauh dari arah kompas. Waktu terbuang: ±${Math.floor(timeLossEst / 60)}:${(timeLossEst % 60).toString().padStart(2, "0")}. Selalu kalibrasi ulang kompas!`;
+          events.push({
+            timestamp: new Date((prevVisitTime + legFinishTime) / 2).toISOString(),
+            leg: i + 1,
+            type: "potential_deviation",
+            confidence: "high",
+            reason: "Bearing error: Fast movement but very low route efficiency.",
+            estimated_impact_s: timeLossEst,
+          });
+        } else if (legSpeedMps < 1.5 && efficiencyPct < 75) {
+          potentialIssue = "Searching Error — Kepercayaan Sedang";
+          coachingNote = `Anda bergerak lambat dan berputar-putar (Pace: ${paceStr}/km). Indikasi kebingungan mencari pos atau salah jalur. Waktu terbuang: ±${Math.floor(timeLossEst / 60)}:${(timeLossEst % 60).toString().padStart(2, "0")}.`;
+          events.push({
+            timestamp: new Date((prevVisitTime + legFinishTime) / 2).toISOString(),
+            leg: i + 1,
+            type: "time_loss",
+            confidence: "medium",
+            reason: "Searching error: Slow movement and low efficiency.",
+            estimated_impact_s: timeLossEst,
+          });
+        } else {
+          potentialIssue = "Potensi Keluar Jalur";
+          coachingNote = `Rute yang ditempuh lebih panjang dari jarak optimal. Perkiraan waktu terbuang: ±${Math.floor(timeLossEst / 60)}:${(timeLossEst % 60).toString().padStart(2, "0")}.`;
+        }
       } else {
-        coachingNote = "Navigasi leg berjalan lancar.";
+        coachingNote = "Navigasi leg berjalan sangat lancar dan efisien.";
+      }
+
+      // Calculate Pace
+      let paceStr: string | null = null;
+      if (legDistM > 10) {
+        const legSpeedMps = legDistM / legDurationS;
+        if (legSpeedMps > 0.1) {
+          const speedKmh = legSpeedMps * 3.6;
+          const paceDec = 60 / speedKmh;
+          const paceMin = Math.floor(paceDec);
+          const paceSec = Math.floor((paceDec - paceMin) * 60).toString().padStart(2, "0");
+          if (paceMin < 60) paceStr = `${paceMin}:${paceSec}`;
+        }
+      }
+
+      // Calculate Efficiency
+      let efficiencyPct: number | null = null;
+      if (straightLineM > 10 && legDistM > 0) {
+        efficiencyPct = Math.round((straightLineM / legDistM) * 100);
+        if (efficiencyPct > 100) efficiencyPct = 100;
       }
 
       legs.push({
@@ -116,6 +151,8 @@ export class AnalysisEngine {
         duration_s: legDurationS,
         distance_m: Math.round(legDistM),
         elevation_m: null,
+        pace_min_km: paceStr,
+        efficiency_pct: efficiencyPct,
         events: [],
         potential_issue: potentialIssue,
         coaching_note: coachingNote,

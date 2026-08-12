@@ -11,6 +11,8 @@ export default function TambahPetaContent() {
   const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [terrainType, setTerrainType] = useState("urban");
+  const [runnability, setRunnability] = useState("high");
   const [boundary, setBoundary] = useState<GeoJSON.Polygon | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +60,10 @@ export default function TambahPetaContent() {
       description,
       boundary,
       sourceType: "osm",
+      metadata: {
+        terrainType,
+        runnability,
+      },
     });
 
     setSaving(false);
@@ -167,6 +173,31 @@ export default function TambahPetaContent() {
                 onChange={(e) => setDescription(e.target.value)}
                 style={{ zIndex: 110, position: "relative" }}
               />
+            </div>
+
+            <div style={{ marginBottom: "var(--space-3)", display: "flex", gap: "var(--space-2)" }}>
+              <select
+                className="input"
+                value={terrainType}
+                onChange={(e) => setTerrainType(e.target.value)}
+                style={{ zIndex: 110, position: "relative", flex: 1 }}
+              >
+                <option value="urban">Perkotaan / Kampus</option>
+                <option value="park">Taman Kota</option>
+                <option value="open_forest">Hutan Terbuka</option>
+                <option value="dense_forest">Hutan Lebat</option>
+              </select>
+
+              <select
+                className="input"
+                value={runnability}
+                onChange={(e) => setRunnability(e.target.value)}
+                style={{ zIndex: 110, position: "relative", flex: 1 }}
+              >
+                <option value="high">Mudah Dilalui (Cepat)</option>
+                <option value="medium">Menengah</option>
+                <option value="low">Sulit / Semak Belukar</option>
+              </select>
             </div>
 
             {error && (

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import type maplibregl from "maplibre-gl";
 import { ReplayEngine } from "@/features/replay/ReplayEngine";
 import { formatDuration } from "@/lib/geo";
+import { distance, point } from "@turf/turf";
 import type { GpsTrack, ControlVisit, CourseControl } from "@/types/database";
 import type { PlaybackSpeed, ReplayEvent } from "@/types/analysis";
 import type { LatLng } from "@/types/map";
@@ -20,6 +21,7 @@ export function ReplayPlayer({ map, tracks, visits, controls }: ReplayPlayerProp
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
   const [followCamera, setFollowCamera] = useState(true);
+  const [telemetry, setTelemetry] = useState({ distanceKm: 0, paceStr: "--:--" });
 
   const startTimeMs = tracks.length > 0 ? new Date(tracks[0].recorded_at).getTime() : 0;
   const endTimeMs = tracks.length > 0 ? new Date(tracks[tracks.length - 1].recorded_at).getTime() : 0;
@@ -87,30 +89,77 @@ export function ReplayPlayer({ map, tracks, visits, controls }: ReplayPlayerProp
     const markerLayerId = "replay-athlete-marker";
     const trailLayerId = "replay-trail-line";
 
-    // 1. Trail coordinates up to currentTimeMs
-    const trailCoords = tracks
-      .filter((t) => new Date(t.recorded_at).getTime() <= currentTimeMs)
-      .map((t) => [t.point.coordinates[0], t.point.coordinates[1]]);
+    const filteredTracks = tracks.filter((t) => new Date(t.recorded_at).getTime() <= currentTimeMs);
+    const trailFeatures: GeoJSON.Feature[] = [];
+    let distKm = 0;
+    let currentMps = 0;
 
-    if (trailCoords.length > 0) {
-      trailCoords.push([athletePos.lng, athletePos.lat]);
+    for (let i = 0; i < filteredTracks.length - 1; i++) {
+      const p1 = filteredTracks[i];
+      const p2 = filteredTracks[i + 1];
+      
+      const speed = p2.speed_mps ?? p1.speed_mps ?? 0;
+      currentMps = speed;
+      let color = "#ef4444"; // Merah (lambat/bingung, < 1 m/s)
+      if (speed > 2.5) color = "#3b82f6"; // Biru (cepat, > 2.5 m/s)
+      else if (speed > 1) color = "#f59e0b"; // Kuning (sedang)
+
+      trailFeatures.push({
+        type: "Feature",
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [p1.point.coordinates[0], p1.point.coordinates[1]],
+            [p2.point.coordinates[0], p2.point.coordinates[1]]
+          ]
+        },
+        properties: { color }
+      });
+      
+      distKm += distance(p1.point, p2.point, { units: "kilometers" });
     }
 
-    // Update or add Trail source/layer
-    if (map.getSource(trailSourceId)) {
-      (map.getSource(trailSourceId) as maplibregl.GeoJSONSource).setData({
+    if (filteredTracks.length > 0) {
+      const last = filteredTracks[filteredTracks.length - 1];
+      const speed = currentMps || 2;
+      trailFeatures.push({
         type: "Feature",
-        geometry: { type: "LineString", coordinates: trailCoords },
-        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [last.point.coordinates[0], last.point.coordinates[1]],
+            [athletePos.lng, athletePos.lat]
+          ]
+        },
+        properties: { color: speed > 2.5 ? "#3b82f6" : speed > 1 ? "#f59e0b" : "#ef4444" }
       });
+      
+      distKm += distance(last.point, point([athletePos.lng, athletePos.lat]), { units: "kilometers" });
+    }
+    
+    // Calculate Pace (min/km)
+    let paceStr = "--:--";
+    if (currentMps > 0.1) {
+      const speedKmh = currentMps * 3.6;
+      const paceDec = 60 / speedKmh;
+      const paceMin = Math.floor(paceDec);
+      const paceSec = Math.floor((paceDec - paceMin) * 60).toString().padStart(2, "0");
+      if (paceMin < 60) paceStr = `${paceMin}:${paceSec}`;
+    }
+    setTelemetry({ distanceKm: distKm, paceStr });
+
+    // Update or add Trail source/layer
+    const trailGeojson: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: trailFeatures,
+    };
+
+    if (map.getSource(trailSourceId)) {
+      (map.getSource(trailSourceId) as maplibregl.GeoJSONSource).setData(trailGeojson);
     } else {
       map.addSource(trailSourceId, {
         type: "geojson",
-        data: {
-          type: "Feature",
-          geometry: { type: "LineString", coordinates: trailCoords },
-          properties: {},
-        },
+        data: trailGeojson,
       });
 
       map.addLayer({
@@ -118,9 +167,9 @@ export function ReplayPlayer({ map, tracks, visits, controls }: ReplayPlayerProp
         type: "line",
         source: trailSourceId,
         paint: {
-          "line-color": "#3b82f6",
-          "line-width": 4,
-          "line-opacity": 0.8,
+          "line-color": ["get", "color"],
+          "line-width": 5,
+          "line-opacity": 0.9,
         },
       });
     }
@@ -184,6 +233,39 @@ export function ReplayPlayer({ map, tracks, visits, controls }: ReplayPlayerProp
         borderTopRightRadius: "var(--radius-lg)",
       }}
     >
+      {/* Telemetry HUD Dashboard */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "var(--space-4)",
+          paddingBottom: "var(--space-3)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+        }}
+      >
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div className="text-helper">WAKTU</div>
+          <div className="text-section text-metric" style={{ fontSize: "1.25rem" }}>
+            {formatDuration(elapsedSec)}
+          </div>
+        </div>
+        <div style={{ width: "1px", height: "30px", backgroundColor: "rgba(255,255,255,0.1)" }}></div>
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div className="text-helper">JARAK</div>
+          <div className="text-section text-metric" style={{ fontSize: "1.25rem" }}>
+            {telemetry.distanceKm.toFixed(2)} <span style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>km</span>
+          </div>
+        </div>
+        <div style={{ width: "1px", height: "30px", backgroundColor: "rgba(255,255,255,0.1)" }}></div>
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div className="text-helper">PACE SAAT INI</div>
+          <div className="text-section text-metric" style={{ fontSize: "1.25rem" }}>
+            {telemetry.paceStr} <span style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>/km</span>
+          </div>
+        </div>
+      </div>
+
       {/* Time & Follow Camera Row */}
       <div
         style={{
@@ -194,8 +276,11 @@ export function ReplayPlayer({ map, tracks, visits, controls }: ReplayPlayerProp
           fontSize: "var(--font-size-sm)",
         }}
       >
-        <div style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-          {formatDuration(elapsedSec)} / {formatDuration(totalSec)}
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+          <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: "#ef4444" }}></div>
+          <span style={{ marginRight: 8 }}>Lambat</span>
+          <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: "#3b82f6" }}></div>
+          <span>Cepat</span>
         </div>
 
         <button

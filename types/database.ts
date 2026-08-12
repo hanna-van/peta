@@ -172,6 +172,8 @@ export interface LegAnalysis {
   duration_s: number;
   distance_m: number;
   elevation_m: number | null;
+  pace_min_km: string | null;
+  efficiency_pct: number | null;
   events: AnalysisEvent[];
   potential_issue: string | null;
   coaching_note: string | null;

@@ -36,6 +36,7 @@ export default function ActiveTrainingPage({
   const [currentGps, setCurrentGps] = useState<GpsSample | null>(null);
 
   const gpsServiceRef = useRef<GpsService | null>(null);
+  const isPunchingRef = useRef(false);
 
   // 1. Fetch course & init/restore session
   useEffect(() => {
@@ -173,7 +174,7 @@ export default function ActiveTrainingPage({
   }, [sessionState]);
 
   // 5. Confirm Control Visit
-  const handleConfirmControl = async () => {
+  const handleConfirmControl = async (method: "manual" | "proximity" | "auto" = "manual") => {
     if (!sessionState || !currentGps) return;
 
     const targetControl = controls[currentCpIndex]; // controls[0] is Start, [1..N] are CPs
@@ -185,14 +186,18 @@ export default function ActiveTrainingPage({
       controlId: targetControl.id,
       controlSequence: targetControl.sequence,
       confirmedAt: visitTime,
-      method: "manual" as const,
+      method: method,
       latitude: currentGps.latitude,
       longitude: currentGps.longitude,
     };
 
     // Haptic feedback outdoor
     if (typeof window !== "undefined" && "vibrate" in navigator) {
-      navigator.vibrate([100, 50, 100]);
+      if (method === "auto") {
+        navigator.vibrate([200, 100, 200, 100, 500]); // Distinct pattern for auto-punch
+      } else {
+        navigator.vibrate([100, 50, 100]);
+      }
     }
 
     const totalCps = controls.length - 2; // Exclude start and finish
@@ -218,6 +223,28 @@ export default function ActiveTrainingPage({
       await handleFinishTraining();
     }
   };
+
+  // Auto-Punching Logic (15m radius)
+  useEffect(() => {
+    if (sessionState?.status !== "active" || !currentGps || isPunchingRef.current) return;
+
+    const targetControl = controls[currentCpIndex];
+    if (!targetControl) return;
+
+    const distToCp = distanceMeters(
+      { lat: currentGps.latitude, lng: currentGps.longitude },
+      { lat: targetControl.point.coordinates[1], lng: targetControl.point.coordinates[0] }
+    );
+
+    if (distToCp <= 15) {
+      isPunchingRef.current = true;
+      handleConfirmControl("auto").finally(() => {
+        setTimeout(() => {
+          isPunchingRef.current = false;
+        }, 3000); // 3 sec debounce
+      });
+    }
+  }, [currentGps, currentCpIndex, controls, sessionState?.status]);
 
   // 6. Finish Training Session
   const handleFinishTraining = async () => {
@@ -269,6 +296,10 @@ export default function ActiveTrainingPage({
 
   const totalCps = controls.length - 2;
   const isLastCp = currentCpIndex >= totalCps;
+
+  const gpsAccuracy = currentGps?.accuracy || 999;
+  const gpsBadgeClass = gpsAccuracy <= 15 ? "badge-success" : gpsAccuracy <= 50 ? "badge-warning" : "badge-error";
+  const gpsText = gpsAccuracy <= 15 ? "GPS Kuat" : gpsAccuracy <= 50 ? "GPS Sedang" : "Mencari GPS";
 
   return (
     <div style={{ height: "100dvh", width: "100vw", position: "relative" }}>
@@ -323,6 +354,12 @@ export default function ActiveTrainingPage({
         <div className="training-hud-chip">
           <span className="badge badge-warning" style={{ fontSize: "0.875rem" }}>
             Pos {currentCpIndex} / {totalCps}
+          </span>
+        </div>
+
+        <div className="training-hud-chip">
+          <span className={`badge ${gpsBadgeClass}`} style={{ fontSize: "0.875rem" }}>
+            {gpsText}
           </span>
         </div>
 

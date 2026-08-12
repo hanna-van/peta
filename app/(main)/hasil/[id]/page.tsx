@@ -271,8 +271,25 @@ export default function HasilDetailPage({
                   </span>
                 </div>
 
-                <div className="text-helper" style={{ marginBottom: "var(--space-2)" }}>
-                  Jarak: {formatDistance(leg.distance_m)}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--space-2)", marginBottom: "var(--space-3)", marginTop: "var(--space-2)" }}>
+                  <div>
+                    <span className="text-helper" style={{ fontSize: "var(--font-size-xs)" }}>Jarak</span>
+                    <div className="text-body" style={{ fontWeight: 600 }}>{formatDistance(leg.distance_m)}</div>
+                  </div>
+                  <div>
+                    <span className="text-helper" style={{ fontSize: "var(--font-size-xs)" }}>Pace</span>
+                    <div className="text-body" style={{ fontWeight: 600 }}>{leg.pace_min_km ? `${leg.pace_min_km}/km` : "-"}</div>
+                  </div>
+                  <div>
+                    <span className="text-helper" style={{ fontSize: "var(--font-size-xs)" }}>Efisiensi</span>
+                    <div>
+                      {leg.efficiency_pct !== null ? (
+                        <span className={`badge ${leg.efficiency_pct >= 85 ? "badge-success" : leg.efficiency_pct >= 60 ? "badge-warning" : "badge-error"}`} style={{ fontSize: "0.7rem", padding: "2px 6px" }}>
+                          {leg.efficiency_pct}%
+                        </span>
+                      ) : "-"}
+                    </div>
+                  </div>
                 </div>
 
                 {leg.potential_issue && (
