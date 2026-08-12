@@ -65,12 +65,20 @@ export default function PetaDetailPage({
             {features.length} fitur peta terdeteksi
           </p>
         </div>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => router.push(`/latihan/baru?mapId=${mapArea.id}`)}
-        >
-          + Buat Jalur
-        </button>
+        <div style={{ display: "flex", gap: "var(--space-2)" }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => router.push(`/peta/${mapArea.id}/kalibrasi`)}
+          >
+            🖼️ Image Overlay (OCAD)
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => router.push(`/latihan/baru?mapId=${mapArea.id}`)}
+          >
+            + Buat Jalur
+          </button>
+        </div>
       </div>
 
       {/* Map display */}

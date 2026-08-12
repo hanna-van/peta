@@ -4,8 +4,10 @@ import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { MapView } from "@/components/map/MapView";
 import { CourseLayer } from "@/components/map/CourseLayer";
+import { ImageOverlayLayer } from "@/components/map/ImageOverlayLayer";
 import { ReplayPlayer } from "@/components/replay/ReplayPlayer";
 import { CourseService } from "@/features/courses/CourseService";
+import { MapAreaService } from "@/features/maps/MapAreaService";
 import { AnalysisEngine } from "@/features/analysis/AnalysisEngine";
 import { createClient } from "@/lib/supabase/client";
 import { formatDuration, formatDistance } from "@/lib/geo";
@@ -33,6 +35,7 @@ export default function HasilDetailPage({
   const [session, setSession] = useState<TrainingSession | null>(null);
   const [course, setCourse] = useState<Course | null>(null);
   const [controls, setControls] = useState<CourseControl[]>([]);
+  const [mapArea, setMapArea] = useState<any>(null);
   const [tracks, setTracks] = useState<GpsTrack[]>([]);
   const [visits, setVisits] = useState<ControlVisit[]>([]);
   const [analysis, setAnalysis] = useState<{
@@ -69,6 +72,11 @@ export default function HasilDetailPage({
           await CourseService.getCourseWithControls(sess.course_id);
         setCourse(c);
         setControls(ctrls);
+
+        if (c?.map_area_id) {
+          const area = await MapAreaService.getMapArea(c.map_area_id);
+          setMapArea(area);
+        }
 
         // 3. Fetch GPS tracks
         const { data: trkData } = await supabase
@@ -186,6 +194,13 @@ export default function HasilDetailPage({
             onMapReady={setMapInstance}
             fullscreen={false}
           >
+            {mapArea?.metadata?.overlay_image && mapArea?.metadata?.overlay_coords && (
+              <ImageOverlayLayer
+                map={mapInstance}
+                imageBase64={mapArea.metadata.overlay_image as string}
+                coordinates={mapArea.metadata.overlay_coords as any}
+              />
+            )}
             <CourseLayer map={mapInstance} controls={generatedControls} />
             <ReplayPlayer
               map={mapInstance}

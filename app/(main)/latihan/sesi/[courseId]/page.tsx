@@ -4,7 +4,9 @@ import { useEffect, useState, useRef, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { MapView } from "@/components/map/MapView";
 import { CourseLayer } from "@/components/map/CourseLayer";
+import { ImageOverlayLayer } from "@/components/map/ImageOverlayLayer";
 import { CourseService } from "@/features/courses/CourseService";
+import { MapAreaService } from "@/features/maps/MapAreaService";
 import { GpsService } from "@/features/training/GpsService";
 import { TrainingStore } from "@/features/training/TrainingStore";
 import { createClient } from "@/lib/supabase/client";
@@ -24,6 +26,7 @@ export default function ActiveTrainingPage({
 
   const [course, setCourse] = useState<Course | null>(null);
   const [controls, setControls] = useState<CourseControl[]>([]);
+  const [mapArea, setMapArea] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null);
 
@@ -54,6 +57,11 @@ export default function ActiveTrainingPage({
 
       setCourse(c);
       setControls(ctrls);
+
+      if (c.map_area_id) {
+        const area = await MapAreaService.getMapArea(c.map_area_id);
+        setMapArea(area);
+      }
 
       // Check if session exists in DB or create a new training_session record
       const supabase = createClient();
@@ -356,6 +364,13 @@ export default function ActiveTrainingPage({
         showUserLocation
         fullscreen
       >
+        {mapArea?.metadata?.overlay_image && mapArea?.metadata?.overlay_coords && (
+          <ImageOverlayLayer
+            map={mapInstance}
+            imageBase64={mapArea.metadata.overlay_image as string}
+            coordinates={mapArea.metadata.overlay_coords as any}
+          />
+        )}
         <CourseLayer
           map={mapInstance}
           controls={generatedControls}

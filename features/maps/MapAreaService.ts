@@ -100,9 +100,32 @@ export class MapAreaService {
 
       if (!error && data) return data as MapArea;
     } catch {
-      // Ignore
+      // Return null on error
     }
     return null;
+  }
+
+  /** Update map area metadata */
+  static async updateMapAreaMetadata(id: string, metadata: Record<string, unknown>): Promise<boolean> {
+    const localMapIndex = this.getLocalMaps().findIndex((m) => m.id === id);
+    if (localMapIndex >= 0) {
+      const maps = this.getLocalMaps();
+      maps[localMapIndex].metadata = metadata;
+      this.saveLocalMaps(maps);
+    }
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("map_areas")
+        .update({ metadata })
+        .eq("id", id);
+      
+      if (!error) return true;
+    } catch {
+      // Ignore
+    }
+    return localMapIndex >= 0;
   }
 
   /** Create a new map area with automatic OSM feature ingestion & fallback */
