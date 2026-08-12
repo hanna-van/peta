@@ -70,6 +70,7 @@ export function MapViewClient({
 
     map.on("load", async () => {
       setMapLoaded(true);
+      map.resize();
       onMapReady?.(map);
 
       // Attempt IP location fallback once if default center

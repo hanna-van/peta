@@ -454,7 +454,11 @@ body {
   height: 100%;
 }
 
-.map-container .maplibregl-map {
+.map-container,
+.map-container > div,
+.map-container .maplibregl-map,
+.map-container .maplibregl-canvas-container,
+.map-container .maplibregl-canvas {
   width: 100% !important;
   height: 100% !important;
 }
