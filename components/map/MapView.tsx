@@ -82,9 +82,26 @@ export function MapView({
       "bottom-left"
     );
 
-    map.on("load", () => {
+    map.on("load", async () => {
       setMapLoaded(true);
       onMapReady?.(map);
+
+      // If using default Jakarta initialCenter, attempt fast IPInfo location fallback
+      if (initialCenter.lat === -6.2088 && initialCenter.lng === 106.8456) {
+        try {
+          const { IpLocationProvider } = await import("@/lib/providers/ipinfo");
+          const ipResult = await IpLocationProvider.getCurrentLocation();
+          if (ipResult && mapRef.current) {
+            mapRef.current.flyTo({
+              center: [ipResult.location.lng, ipResult.location.lat],
+              zoom: initialZoom,
+              duration: 1500,
+            });
+          }
+        } catch {
+          // Ignore fallback errors
+        }
+      }
     });
 
     map.on("moveend", () => {
