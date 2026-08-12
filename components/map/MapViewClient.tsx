@@ -58,14 +58,17 @@ export function MapViewClient({
     );
 
     if (showUserLocation) {
-      map.addControl(
-        new maplibregl.GeolocateControl({
-          positionOptions: { enableHighAccuracy: true },
-          trackUserLocation: true,
-          showAccuracyCircle: true,
-        }),
-        "top-right"
-      );
+      const geolocateControl = new maplibregl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: true,
+        showAccuracyCircle: true,
+      });
+      map.addControl(geolocateControl, "top-right");
+
+      map.on("load", () => {
+        // Automatically request permission and find user location when map loads
+        geolocateControl.trigger();
+      });
     }
 
     map.addControl(

@@ -153,7 +153,7 @@ export default function ActiveTrainingPage({
   }, []);
 
   useEffect(() => {
-    if (sessionState?.status !== "active") return;
+    if (!["ready", "countdown", "active"].includes(sessionState?.status || "")) return;
 
     const gps = new GpsService();
     gpsServiceRef.current = gps;
@@ -391,36 +391,48 @@ export default function ActiveTrainingPage({
       )}
 
       {/* Top HUD Overlay (Timer, CP Counter, Sync Status) */}
-      <div className="training-hud">
-        <div className="training-hud-chip">
-          <span className="text-metric" style={{ fontSize: "1.5rem" }}>
-            {formatDuration(elapsedSeconds)}
-          </span>
-        </div>
+      <div 
+        className="training-hud" 
+        style={{ 
+          display: "flex", 
+          flexWrap: "wrap", 
+          gap: "var(--space-2)", 
+          alignItems: "flex-start",
+          paddingRight: "60px" // Leave space for Geolocate control
+        }}
+      >
+        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", flex: 1 }}>
+          <div className="training-hud-chip">
+            <span className="text-metric" style={{ fontSize: "1.5rem" }}>
+              {formatDuration(elapsedSeconds)}
+            </span>
+          </div>
 
-        <div className="training-hud-chip">
-          <span className="badge badge-warning" style={{ fontSize: "0.875rem" }}>
-            Pos {currentCpIndex} / {totalCps}
-          </span>
-        </div>
+          <div className="training-hud-chip">
+            <span className="badge badge-warning" style={{ fontSize: "0.875rem" }}>
+              Pos {currentCpIndex} / {totalCps}
+            </span>
+          </div>
 
-        <div className="training-hud-chip">
-          <span className={`badge ${gpsBadgeClass}`} style={{ fontSize: "0.875rem" }}>
-            {gpsText}
-          </span>
-        </div>
+          <div className="training-hud-chip">
+            <span className={`badge ${gpsBadgeClass}`} style={{ fontSize: "0.875rem" }}>
+              {gpsText}
+            </span>
+          </div>
 
-        <div className="training-hud-chip">
-          <span
-            className={`badge ${connectionStatus === "online" ? "badge-success" : "badge-neutral"}`}
-          >
-            {connectionStatus === "online" ? "Online" : "Offline"}
-          </span>
+          <div className="training-hud-chip">
+            <span
+              className={`badge ${connectionStatus === "online" ? "badge-success" : "badge-neutral"}`}
+              style={{ fontSize: "0.875rem" }}
+            >
+              {connectionStatus === "online" ? "Online" : "Offline"}
+            </span>
+          </div>
         </div>
         
         <button
           className="btn btn-secondary btn-sm"
-          style={{ padding: "0 var(--space-3)", borderRadius: "var(--radius-full)" }}
+          style={{ padding: "0 var(--space-3)", borderRadius: "var(--radius-full)", alignSelf: "flex-start", marginTop: "var(--space-1)" }}
           onClick={() => setShowDescriptions(!showDescriptions)}
         >
           {showDescriptions ? "Tutup Deskripsi" : "📋 Deskripsi Pos"}
@@ -491,10 +503,10 @@ export default function ActiveTrainingPage({
       <div
         style={{
           position: "fixed",
-          bottom: "var(--space-6)",
+          bottom: "calc(env(safe-area-inset-bottom) + var(--space-4))", // Better spacing for mobile navigation bars
           left: "var(--space-4)",
           right: "var(--space-4)",
-          zIndex: 70,
+          zIndex: 90, // Ensure it's above maplibre attributions
           display: "flex",
           flexDirection: "column",
           gap: "var(--space-3)",
@@ -506,7 +518,7 @@ export default function ActiveTrainingPage({
               className="btn btn-secondary btn-full"
               onClick={handleDownloadMap}
               disabled={downloadProgress?.status === "downloading"}
-              style={{ fontSize: "1rem", height: 50, backgroundColor: "rgba(10,14,23,0.9)", backdropFilter: "blur(8px)" }}
+              style={{ fontSize: "0.95rem", height: 48, backgroundColor: "rgba(10,14,23,0.95)", backdropFilter: "blur(8px)" }}
             >
               {downloadProgress?.status === "downloading" 
                 ? `⬇ Mendownload Peta Offline... (${downloadProgress.downloaded}/${downloadProgress.total})` 
@@ -517,7 +529,7 @@ export default function ActiveTrainingPage({
             <button
               className="btn btn-primary btn-lg btn-full"
               onClick={handleStartCountdown}
-              style={{ fontSize: "1.25rem", height: 60 }}
+              style={{ fontSize: "1.25rem", height: 56, boxShadow: "var(--shadow-xl)" }}
             >
               ▶ Mulai Latihan
             </button>
@@ -526,7 +538,7 @@ export default function ActiveTrainingPage({
           <button
             className={`btn ${isLastCp ? "btn-danger" : "btn-primary"} btn-lg btn-full`}
             onClick={() => handleConfirmControl("manual")}
-            style={{ fontSize: "1.25rem", height: 64, boxShadow: "var(--shadow-lg)" }}
+            style={{ fontSize: "1.25rem", height: 60, boxShadow: "var(--shadow-xl)" }}
           >
             {isLastCp ? "✔ Pos Terakhir & Selesai!" : `✔ Confirm Pos CP ${currentCpIndex}`}
           </button>
