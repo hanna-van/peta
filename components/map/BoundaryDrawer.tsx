@@ -10,6 +10,38 @@ interface BoundaryDrawerProps {
   onBoundaryChange: (polygon: GeoJSON.Polygon | null) => void;
 }
 
+function safeHasLayer(map: maplibregl.Map, id: string): boolean {
+  try {
+    return Boolean(map.isStyleLoaded() && map.getStyle() && map.getLayer(id));
+  } catch {
+    return false;
+  }
+}
+
+function safeHasSource(map: maplibregl.Map, id: string): boolean {
+  try {
+    return Boolean(map.isStyleLoaded() && map.getStyle() && map.getSource(id));
+  } catch {
+    return false;
+  }
+}
+
+function safeRemoveLayer(map: maplibregl.Map, id: string) {
+  try {
+    if (safeHasLayer(map, id)) map.removeLayer(id);
+  } catch {
+    // Ignore cleanup error
+  }
+}
+
+function safeRemoveSource(map: maplibregl.Map, id: string) {
+  try {
+    if (safeHasSource(map, id)) map.removeSource(id);
+  } catch {
+    // Ignore cleanup error
+  }
+}
+
 /**
  * BoundaryDrawer — allows drawing/selecting a polygon boundary on the map
  * by clicking points outdoors or on small touchscreens.
@@ -48,108 +80,120 @@ export function BoundaryDrawer({
   useEffect(() => {
     if (!map || !active) return;
     map.on("click", handleMapClick);
-    map.getCanvas().style.cursor = "crosshair";
+    try {
+      if (map.getCanvas()) map.getCanvas().style.cursor = "crosshair";
+    } catch {
+      // Ignore canvas error
+    }
 
     return () => {
       map.off("click", handleMapClick);
-      map.getCanvas().style.cursor = "";
+      try {
+        if (map.getCanvas()) map.getCanvas().style.cursor = "";
+      } catch {
+        // Ignore canvas error
+      }
     };
   }, [map, active, handleMapClick]);
 
   // Render polygon & points layer on map
   useEffect(() => {
-    if (!map) return;
+    if (!map || !map.isStyleLoaded() || !map.getStyle()) return;
 
     const sourceId = "boundary-drawer-source";
     const lineLayerId = "boundary-drawer-line";
     const fillLayerId = "boundary-drawer-fill";
     const pointsLayerId = "boundary-drawer-points";
 
-    if (map.getLayer(pointsLayerId)) map.removeLayer(pointsLayerId);
-    if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
-    if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId);
-    if (map.getSource(sourceId)) map.removeSource(sourceId);
+    try {
+      safeRemoveLayer(map, pointsLayerId);
+      safeRemoveLayer(map, lineLayerId);
+      safeRemoveLayer(map, fillLayerId);
+      safeRemoveSource(map, sourceId);
 
-    if (points.length === 0) return;
+      if (points.length === 0) return;
 
-    const lineCoords = points.map((p) => [p.lng, p.lat]);
-    if (points.length >= 3) {
-      lineCoords.push([points[0].lng, points[0].lat]);
-    }
+      const lineCoords = points.map((p) => [p.lng, p.lat]);
+      if (points.length >= 3) {
+        lineCoords.push([points[0].lng, points[0].lat]);
+      }
 
-    const mainGeometry: GeoJSON.Geometry =
-      points.length >= 3
-        ? { type: "Polygon", coordinates: [lineCoords] }
-        : { type: "LineString", coordinates: lineCoords };
+      const mainGeometry: GeoJSON.Geometry =
+        points.length >= 3
+          ? { type: "Polygon", coordinates: [lineCoords] }
+          : { type: "LineString", coordinates: lineCoords };
 
-    const geojson: GeoJSON.FeatureCollection = {
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          geometry: mainGeometry,
-          properties: {},
-        },
-        ...points.map((p) => ({
-          type: "Feature" as const,
-          geometry: {
-            type: "Point" as const,
-            coordinates: [p.lng, p.lat],
+      const geojson: GeoJSON.FeatureCollection = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: mainGeometry,
+            properties: {},
           },
-          properties: {},
-        })),
-      ],
-    };
+          ...points.map((p) => ({
+            type: "Feature" as const,
+            geometry: {
+              type: "Point" as const,
+              coordinates: [p.lng, p.lat],
+            },
+            properties: {},
+          })),
+        ],
+      };
 
-    map.addSource(sourceId, {
-      type: "geojson",
-      data: geojson,
-    });
+      map.addSource(sourceId, {
+        type: "geojson",
+        data: geojson,
+      });
 
-    if (points.length >= 3) {
+      if (points.length >= 3) {
+        map.addLayer({
+          id: fillLayerId,
+          type: "fill",
+          source: sourceId,
+          filter: ["==", ["geometry-type"], "Polygon"],
+          paint: {
+            "fill-color": "#3b82f6",
+            "fill-opacity": 0.2,
+          },
+        });
+      }
+
       map.addLayer({
-        id: fillLayerId,
-        type: "fill",
+        id: lineLayerId,
+        type: "line",
         source: sourceId,
-        filter: ["==", ["geometry-type"], "Polygon"],
+        filter: ["!=", ["geometry-type"], "Point"],
         paint: {
-          "fill-color": "#3b82f6",
-          "fill-opacity": 0.2,
+          "line-color": "#3b82f6",
+          "line-width": 3,
+          "line-dasharray": [2, 1],
         },
       });
+
+      map.addLayer({
+        id: pointsLayerId,
+        type: "circle",
+        source: sourceId,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": 6,
+          "circle-color": "#3b82f6",
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+    } catch {
+      // Ignore transient style initialization error
     }
-
-    map.addLayer({
-      id: lineLayerId,
-      type: "line",
-      source: sourceId,
-      filter: ["!=", ["geometry-type"], "Point"],
-      paint: {
-        "line-color": "#3b82f6",
-        "line-width": 3,
-        "line-dasharray": [2, 1],
-      },
-    });
-
-    map.addLayer({
-      id: pointsLayerId,
-      type: "circle",
-      source: sourceId,
-      filter: ["==", ["geometry-type"], "Point"],
-      paint: {
-        "circle-radius": 6,
-        "circle-color": "#3b82f6",
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#ffffff",
-      },
-    });
 
     return () => {
       if (!map) return;
-      if (map.getLayer(pointsLayerId)) map.removeLayer(pointsLayerId);
-      if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
-      if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId);
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
+      safeRemoveLayer(map, pointsLayerId);
+      safeRemoveLayer(map, lineLayerId);
+      safeRemoveLayer(map, fillLayerId);
+      safeRemoveSource(map, sourceId);
     };
   }, [map, points]);
 
