@@ -1,6 +1,6 @@
 /**
  * Map tile source configuration.
- * Supports MapTiler vector tiles (if key available) or OSM raster fallback.
+ * Supports MapTiler vector tiles (if key available) or CARTO Voyager vector style fallback.
  */
 
 import type { TileSource } from "@/types/map";
@@ -22,23 +22,23 @@ export function getTileSource(): TileSource {
     };
   }
 
-  // Fallback: free OSM raster tiles with reliable tile mirrors
+  // Reliable free vector style (CARTO Voyager GL)
   return {
-    id: "osm-raster",
-    name: "OpenStreetMap",
-    type: "raster",
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    id: "carto-voyager",
+    name: "CARTO Voyager",
+    type: "vector",
+    url: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
     attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19,
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 20,
     minZoom: 0,
   };
 }
 
 /**
  * Get the MapLibre style object for the tile source.
- * Vector tiles use a style JSON URL.
- * Raster tiles use an inline style with raster source.
+ * Vector tiles return the style JSON URL directly.
+ * Raster tiles return inline style specification.
  */
 export function getMapStyle(): string | object {
   const source = getTileSource();
@@ -47,17 +47,21 @@ export function getMapStyle(): string | object {
     return source.url;
   }
 
-  // Inline style for raster tiles
   return {
     version: 8,
     name: source.name,
     sources: {
       "osm-raster": {
         type: "raster",
-        tiles: [source.url],
+        tiles: [
+          "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        ],
         tileSize: 256,
         attribution: source.attribution,
-        maxzoom: source.maxZoom,
+        maxzoom: 19,
       },
     },
     layers: [
