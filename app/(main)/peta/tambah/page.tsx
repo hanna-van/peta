@@ -7,6 +7,8 @@ import { BoundaryDrawer } from "@/components/map/BoundaryDrawer";
 import { MapAreaService } from "@/features/maps/MapAreaService";
 import type maplibregl from "maplibre-gl";
 
+export const dynamic = "force-dynamic";
+
 export default function TambahPetaPage() {
   const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null);
   const [name, setName] = useState("");

@@ -8,6 +8,8 @@ import { MapAreaService } from "@/features/maps/MapAreaService";
 import type { MapArea, MapFeature } from "@/types/database";
 import type maplibregl from "maplibre-gl";
 
+export const dynamic = "force-dynamic";
+
 export default function PetaDetailPage({
   params,
 }: {

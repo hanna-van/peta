@@ -5,6 +5,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { MapArea } from "@/types/database";
 
+export const dynamic = "force-dynamic";
+
 export default function PetaPage() {
   const [maps, setMaps] = useState<MapArea[]>([]);
   const [loading, setLoading] = useState(true);
