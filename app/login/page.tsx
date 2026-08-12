@@ -25,10 +25,10 @@ export default function LoginPage() {
       });
 
       if (error) {
-        if (error.message.includes("Invalid login")) {
+        if (error.message.toLowerCase().includes("invalid login")) {
           setError("Email atau password salah.");
         } else {
-          setError("Gagal masuk. Silakan coba lagi.");
+          setError(`Gagal masuk: ${error.message}`);
         }
         return;
       }

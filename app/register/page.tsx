@@ -30,10 +30,10 @@ export default function RegisterPage() {
       });
 
       if (error) {
-        if (error.message.includes("already registered")) {
+        if (error.message.toLowerCase().includes("already registered")) {
           setError("Email sudah terdaftar. Silakan masuk.");
         } else {
-          setError("Gagal mendaftar. Silakan coba lagi.");
+          setError(`Gagal mendaftar: ${error.message}`);
         }
         return;
       }
