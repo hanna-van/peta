@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import type maplibregl from "maplibre-gl";
+import { bbox, bboxPolygon, buffer, lineString } from "@turf/turf";
 import type { GeneratedControl } from "@/types/course";
 
 interface CourseLayerProps {
@@ -74,15 +75,55 @@ export function CourseLayer({
     const activeCircleLayerId = "course-active-circle-layer";
     const labelLayerId = "course-label-layer";
 
+    const maskSourceId = "course-mask-source";
+    const maskLayerId = "course-mask-layer";
+
     try {
       safeRemoveLayer(map, labelLayerId);
       safeRemoveLayer(map, "course-finish-inner-layer");
       safeRemoveLayer(map, activeCircleLayerId);
       safeRemoveLayer(map, circleLayerId);
       safeRemoveLayer(map, lineLayerId);
+      safeRemoveLayer(map, maskLayerId);
       safeRemoveSource(map, sourceId);
+      safeRemoveSource(map, maskSourceId);
 
       const lineCoords = controls.map((c) => [c.position.lng, c.position.lat]);
+
+      // --- 1. Map Masking (Paper Crop Effect) ---
+      let maskFeature: GeoJSON.Feature<GeoJSON.Polygon> | null = null;
+      if (lineCoords.length > 1) {
+        try {
+          const line = lineString(lineCoords);
+          const bbx = bbox(line);
+          const poly = bboxPolygon(bbx);
+          const bufferedPoly = buffer(poly, 0.2, { units: "kilometers" }); // 200m buffer
+          
+          if (bufferedPoly && bufferedPoly.geometry && bufferedPoly.geometry.coordinates) {
+            const holeRing = bufferedPoly.geometry.coordinates[0];
+            // Donut polygon: world exterior ring + course interior ring (hole)
+            maskFeature = {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [-180, -90],
+                    [180, -90],
+                    [180, 90],
+                    [-180, 90],
+                    [-180, -90],
+                  ],
+                  holeRing,
+                ],
+              },
+            };
+          }
+        } catch (e) {
+          console.warn("Failed to generate mask", e);
+        }
+      }
 
       const geojson: GeoJSON.FeatureCollection = {
         type: "FeatureCollection",
@@ -126,6 +167,24 @@ export function CourseLayer({
       const iofMagentaActive = "#00FFFF"; // High-contrast glowing cyan for active CP
       const iofMagentaFill = "rgba(212, 0, 212, 0.15)";
       const activeFill = "rgba(0, 255, 255, 0.25)";
+
+      // --- Mask Layer (Drawn first, so it's at the bottom) ---
+      if (maskFeature) {
+        map.addSource(maskSourceId, {
+          type: "geojson",
+          data: maskFeature,
+        });
+
+        map.addLayer({
+          id: maskLayerId,
+          type: "fill",
+          source: maskSourceId,
+          paint: {
+            "fill-color": "#ffffff",
+            "fill-opacity": 0.95, // Highly opaque white like paper
+          },
+        });
+      }
 
       // Course Line
       map.addLayer({
