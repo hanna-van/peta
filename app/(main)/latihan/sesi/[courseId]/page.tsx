@@ -32,6 +32,7 @@ export default function ActiveTrainingPage({
   const [countdown, setCountdown] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [currentCpIndex, setCurrentCpIndex] = useState<number>(1); // CP #1 is first target
+  const [showDescriptions, setShowDescriptions] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("online");
   const [currentGps, setCurrentGps] = useState<GpsSample | null>(null);
 
@@ -191,12 +192,23 @@ export default function ActiveTrainingPage({
       longitude: currentGps.longitude,
     };
 
-    // Haptic feedback outdoor
-    if (typeof window !== "undefined" && "vibrate" in navigator) {
-      if (method === "auto") {
-        navigator.vibrate([200, 100, 200, 100, 500]); // Distinct pattern for auto-punch
-      } else {
-        navigator.vibrate([100, 50, 100]);
+    // Haptic & Audio feedback outdoor
+    if (typeof window !== "undefined") {
+      if ("vibrate" in navigator) {
+        if (method === "auto") {
+          navigator.vibrate([200, 100, 200, 100, 500]); // Distinct pattern for auto-punch
+        } else {
+          navigator.vibrate([100, 50, 100]);
+        }
+      }
+      
+      // Audio Punching
+      if ("speechSynthesis" in window) {
+        const msgText = currentCpIndex === controls.length - 2 ? "Finish OK" : `Pos ${currentCpIndex} OK`;
+        const msg = new SpeechSynthesisUtterance(msgText);
+        msg.lang = "id-ID";
+        msg.rate = 1.1;
+        window.speechSynthesis.speak(msg);
       }
     }
 
@@ -376,7 +388,75 @@ export default function ActiveTrainingPage({
             {connectionStatus === "online" ? "Online" : "Offline"}
           </span>
         </div>
+        
+        <button
+          className="btn btn-secondary btn-sm"
+          style={{ padding: "0 var(--space-3)", borderRadius: "var(--radius-full)" }}
+          onClick={() => setShowDescriptions(!showDescriptions)}
+        >
+          {showDescriptions ? "Tutup Deskripsi" : "📋 Deskripsi Pos"}
+        </button>
       </div>
+
+      {/* Control Descriptions IOF Sidebar */}
+      {showDescriptions && (
+        <div
+          style={{
+            position: "absolute",
+            top: 80,
+            right: "var(--space-4)",
+            width: 280,
+            maxHeight: "calc(100vh - 200px)",
+            backgroundColor: "rgba(10, 14, 23, 0.95)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid #D400D4",
+            borderRadius: "var(--radius-md)",
+            zIndex: 80,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          }}
+        >
+          <div style={{ backgroundColor: "#D400D4", padding: "var(--space-2)", textAlign: "center" }}>
+            <span style={{ color: "#fff", fontWeight: "bold", fontSize: "0.9rem" }}>Deskripsi CP (IOF)</span>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.2)" }}>
+                <th style={{ padding: "var(--space-2)", textAlign: "center" }}>No</th>
+                <th style={{ padding: "var(--space-2)", textAlign: "center" }}>Kode</th>
+                <th style={{ padding: "var(--space-2)", textAlign: "left" }}>Deskripsi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {controls.map((c) => {
+                const isStart = c.sequence === 0;
+                const isFinish = c.sequence === controls.length - 1;
+                const isActive = c.sequence === currentCpIndex;
+                const noStr = isStart ? "S" : isFinish ? "F" : String(c.sequence);
+                const codeStr = isStart ? "Start" : isFinish ? "Finish" : `CP${c.sequence}`;
+                const descStr = (c.metadata?.rationale as string) || (c.feature_type ? c.feature_type.replace("_", " ") : "-");
+                
+                return (
+                  <tr 
+                    key={c.id} 
+                    style={{ 
+                      borderBottom: "1px solid rgba(255,255,255,0.1)",
+                      backgroundColor: isActive ? "rgba(212, 0, 212, 0.2)" : "transparent",
+                      color: isActive ? "#FF5722" : "inherit"
+                    }}
+                  >
+                    <td style={{ padding: "var(--space-2)", textAlign: "center", fontWeight: "bold", color: "#D400D4" }}>{noStr}</td>
+                    <td style={{ padding: "var(--space-2)", textAlign: "center", fontWeight: 600 }}>{codeStr}</td>
+                    <td style={{ padding: "var(--space-2)", textAlign: "left", textTransform: "capitalize" }}>{descStr}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Bottom Primary Action Button */}
       <div
