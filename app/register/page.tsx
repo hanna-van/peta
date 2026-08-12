@@ -30,8 +30,13 @@ export default function RegisterPage() {
       });
 
       if (error) {
-        if (error.message.toLowerCase().includes("already registered")) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes("already registered")) {
           setError("Email sudah terdaftar. Silakan masuk.");
+        } else if (msg.includes("rate limit") || msg.includes("rate_limit")) {
+          setError(
+            "Batas pengiriman email Supabase terlampaui (Email Rate Limit Exceeded). Silakan tunggu 5-10 menit, atau matikan 'Confirm Email' di Supabase Dashboard -> Auth -> Providers -> Email."
+          );
         } else {
           setError(`Gagal mendaftar: ${error.message}`);
         }
