@@ -7,7 +7,7 @@ const withPWA = withPWAInit({
   workboxOptions: {
     runtimeCaching: [
       {
-        urlPattern: /^https:\/\/tile\.openstreetmap\.org\/.*/i,
+        urlPattern: /^https:\/\/[abc]\.tile\.opentopomap\.org\/.*/i,
         handler: "CacheFirst",
         options: {
           cacheName: "offline-map-tiles",

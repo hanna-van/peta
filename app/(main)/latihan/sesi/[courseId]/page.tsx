@@ -35,6 +35,8 @@ export default function ActiveTrainingPage({
   const [showDescriptions, setShowDescriptions] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("online");
   const [currentGps, setCurrentGps] = useState<GpsSample | null>(null);
+  
+  const [downloadProgress, setDownloadProgress] = useState<import("@/features/maps/TileDownloader").DownloadProgress | null>(null);
 
   const gpsServiceRef = useRef<GpsService | null>(null);
   const isPunchingRef = useRef(false);
@@ -288,6 +290,33 @@ export default function ActiveTrainingPage({
     router.push(`/hasil/${sessionState.sessionId}`);
   };
 
+  const handleDownloadMap = async () => {
+    if (!controls.length) return;
+    
+    // Calculate bounding box of controls with a small buffer
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    controls.forEach(c => {
+      const lat = c.point.coordinates[1];
+      const lng = c.point.coordinates[0];
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    });
+    
+    // Add ~500m buffer
+    const buffer = 0.005; 
+    
+    const { TileDownloader } = await import("@/features/maps/TileDownloader");
+    await TileDownloader.downloadArea(
+      minLng - buffer,
+      minLat - buffer,
+      maxLng + buffer,
+      maxLat + buffer,
+      (progress) => setDownloadProgress(progress)
+    );
+  };
+
   if (loading || !course || !sessionState) {
     return (
       <div className="page flex-center" style={{ minHeight: "100dvh" }}>
@@ -466,16 +495,33 @@ export default function ActiveTrainingPage({
           left: "var(--space-4)",
           right: "var(--space-4)",
           zIndex: 70,
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--space-3)",
         }}
       >
         {sessionState.status === "ready" ? (
-          <button
-            className="btn btn-primary btn-lg btn-full"
-            onClick={handleStartCountdown}
-            style={{ fontSize: "1.25rem", height: 60 }}
-          >
-            ▶ Mulai Latihan
-          </button>
+          <>
+            <button
+              className="btn btn-secondary btn-full"
+              onClick={handleDownloadMap}
+              disabled={downloadProgress?.status === "downloading"}
+              style={{ fontSize: "1rem", height: 50, backgroundColor: "rgba(10,14,23,0.9)", backdropFilter: "blur(8px)" }}
+            >
+              {downloadProgress?.status === "downloading" 
+                ? `⬇ Mendownload Peta Offline... (${downloadProgress.downloaded}/${downloadProgress.total})` 
+                : downloadProgress?.status === "complete" 
+                  ? "✅ Peta Offline Tersimpan" 
+                  : "⬇ Download Peta Area (Offline)"}
+            </button>
+            <button
+              className="btn btn-primary btn-lg btn-full"
+              onClick={handleStartCountdown}
+              style={{ fontSize: "1.25rem", height: 60 }}
+            >
+              ▶ Mulai Latihan
+            </button>
+          </>
         ) : sessionState.status === "active" ? (
           <button
             className={`btn ${isLastCp ? "btn-danger" : "btn-primary"} btn-lg btn-full`}
