@@ -35,9 +35,13 @@ export async function updateSession(request: NextRequest) {
   });
 
   // Refresh session — important for Server Components
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user ?? null;
+  } catch (err) {
+    console.warn("Middleware auth check caught error:", err);
+  }
 
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/login") ||
