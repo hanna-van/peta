@@ -1,0 +1,368 @@
+"use client";
+
+import { useEffect, useState, useRef, useCallback, use } from "react";
+import { useRouter } from "next/navigation";
+import { MapView } from "@/components/map/MapView";
+import { CourseLayer } from "@/components/map/CourseLayer";
+import { CourseService } from "@/features/courses/CourseService";
+import { GpsService } from "@/features/training/GpsService";
+import { TrainingStore } from "@/features/training/TrainingStore";
+import { createClient } from "@/lib/supabase/client";
+import { formatDuration, routeDistance, distanceMeters } from "@/lib/geo";
+import type { Course, CourseControl } from "@/types/database";
+import type { GpsSample, LocalSessionState, ConnectionStatus } from "@/types/training";
+import type { LatLng } from "@/types/map";
+import type maplibregl from "maplibre-gl";
+
+export default function ActiveTrainingPage({
+  params,
+}: {
+  params: Promise<{ courseId: string }>;
+}) {
+  const { courseId } = use(params);
+  const router = useRouter();
+
+  const [course, setCourse] = useState<Course | null>(null);
+  const [controls, setControls] = useState<CourseControl[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null);
+
+  // Session state
+  const [sessionState, setSessionState] = useState<LocalSessionState | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [currentCpIndex, setCurrentCpIndex] = useState<number>(1); // CP #1 is first target
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("online");
+  const [currentGps, setCurrentGps] = useState<GpsSample | null>(null);
+
+  const gpsServiceRef = useRef<GpsService | null>(null);
+
+  // 1. Fetch course & init/restore session
+  useEffect(() => {
+    async function loadSession() {
+      const { course: c, controls: ctrls } =
+        await CourseService.getCourseWithControls(courseId);
+
+      if (!c || ctrls.length === 0) {
+        router.push("/latihan");
+        return;
+      }
+
+      setCourse(c);
+      setControls(ctrls);
+
+      // Check if session exists in DB or create a new training_session record
+      const supabase = createClient();
+      const { data: userData } = await supabase.auth.getUser();
+
+      if (!userData.user) {
+        router.push("/login");
+        return;
+      }
+
+      // Check existing local session or create remote session
+      let local = TrainingStore.getLocalSession();
+      if (!local || local.courseId !== courseId) {
+        const { data: remoteSession } = await supabase
+          .from("training_sessions")
+          .insert({
+            user_id: userData.user.id,
+            course_id: courseId,
+            status: "ready",
+          })
+          .select()
+          .single();
+
+        const sId = remoteSession?.id || crypto.randomUUID();
+        local = TrainingStore.initSession(sId, courseId);
+      }
+
+      setSessionState(local);
+      if (local.startedAt) {
+        const elapsed = Math.floor((Date.now() - new Date(local.startedAt).getTime()) / 1000);
+        setElapsedSeconds(Math.max(0, elapsed));
+      }
+
+      setLoading(false);
+    }
+    loadSession();
+  }, [courseId, router]);
+
+  // 2. Start Countdown -> Active
+  const handleStartCountdown = () => {
+    setCountdown(3);
+  };
+
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else {
+      // Countdown finished -> Start active session!
+      setCountdown(null);
+      const nowIso = new Date().toISOString();
+      setSessionState((prev) => {
+        if (!prev) return null;
+        const nextState = {
+          ...prev,
+          status: "active" as const,
+          startedAt: nowIso,
+        };
+        TrainingStore.saveLocalSession(nextState);
+        TrainingStore.updateRemoteSessionStatus(prev.sessionId, "active", {
+          started_at: nowIso,
+        });
+        return nextState;
+      });
+    }
+  }, [countdown]);
+
+  // 3. Stopwatch timer effect during active session
+  useEffect(() => {
+    if (sessionState?.status !== "active") return;
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [sessionState?.status]);
+
+  // 4. GPS tracking effect
+  const handleNewGpsSample = useCallback((sample: GpsSample) => {
+    setCurrentGps(sample);
+
+    setSessionState((prev) => {
+      if (!prev || prev.status !== "active") return prev;
+
+      const nextSamples = [...prev.gpsSamples, sample];
+      const nextPending = [...prev.pendingGpsSamples, sample];
+
+      const updated = {
+        ...prev,
+        gpsSamples: nextSamples,
+        pendingGpsSamples: nextPending,
+      };
+
+      TrainingStore.saveLocalSession(updated);
+      return updated;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (sessionState?.status !== "active") return;
+
+    const gps = new GpsService();
+    gpsServiceRef.current = gps;
+    gps.startTracking(handleNewGpsSample);
+
+    return () => {
+      gps.stopTracking();
+    };
+  }, [sessionState?.status, handleNewGpsSample]);
+
+  // Periodic offline data sync to Supabase
+  useEffect(() => {
+    if (!sessionState) return;
+    const interval = setInterval(async () => {
+      const { updatedState, connectionStatus: conn } =
+        await TrainingStore.syncPendingData(sessionState);
+      setSessionState(updatedState);
+      setConnectionStatus(conn);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [sessionState]);
+
+  // 5. Confirm Control Visit
+  const handleConfirmControl = async () => {
+    if (!sessionState || !currentGps) return;
+
+    const targetControl = controls[currentCpIndex]; // controls[0] is Start, [1..N] are CPs
+    if (!targetControl) return;
+
+    const visitTime = new Date().toISOString();
+
+    const visit = {
+      controlId: targetControl.id,
+      controlSequence: targetControl.sequence,
+      confirmedAt: visitTime,
+      method: "manual" as const,
+      latitude: currentGps.latitude,
+      longitude: currentGps.longitude,
+    };
+
+    // Haptic feedback outdoor
+    if (typeof window !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate([100, 50, 100]);
+    }
+
+    const totalCps = controls.length - 2; // Exclude start and finish
+
+    setSessionState((prev) => {
+      if (!prev) return null;
+      const nextVisits = [...prev.controlVisits, visit];
+      const nextPendingVisits = [...prev.pendingControlVisits, visit];
+
+      const updated = {
+        ...prev,
+        controlVisits: nextVisits,
+        pendingControlVisits: nextPendingVisits,
+      };
+      TrainingStore.saveLocalSession(updated);
+      return updated;
+    });
+
+    if (currentCpIndex < totalCps) {
+      setCurrentCpIndex((prev) => prev + 1);
+    } else {
+      // Reached final CP -> Finish training!
+      await handleFinishTraining();
+    }
+  };
+
+  // 6. Finish Training Session
+  const handleFinishTraining = async () => {
+    if (!sessionState) return;
+
+    gpsServiceRef.current?.stopTracking();
+
+    const finishTime = new Date().toISOString();
+    const totalDist = routeDistance(
+      sessionState.gpsSamples.map((s) => ({ lat: s.latitude, lng: s.longitude }))
+    );
+
+    const updatedState = {
+      ...sessionState,
+      status: "finished" as const,
+    };
+
+    // Sync all remaining pending data
+    await TrainingStore.syncPendingData(updatedState);
+
+    // Update session record on Supabase
+    await TrainingStore.updateRemoteSessionStatus(sessionState.sessionId, "finished", {
+      finished_at: finishTime,
+      duration_seconds: elapsedSeconds,
+      distance_m: totalDist,
+    });
+
+    TrainingStore.clearLocalSession();
+    router.push(`/hasil/${sessionState.sessionId}`);
+  };
+
+  if (loading || !course || !sessionState) {
+    return (
+      <div className="page flex-center" style={{ minHeight: "100dvh" }}>
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  const generatedControls = controls.map((c) => ({
+    sequence: c.sequence,
+    position: {
+      lat: c.point.coordinates[1],
+      lng: c.point.coordinates[0],
+    },
+    featureType: c.feature_type,
+    rationale: (c.metadata?.rationale as string) || "",
+  }));
+
+  const totalCps = controls.length - 2;
+  const isLastCp = currentCpIndex >= totalCps;
+
+  return (
+    <div style={{ height: "100dvh", width: "100vw", position: "relative" }}>
+      {/* Fullscreen Map Canvas */}
+      <MapView
+        initialZoom={16}
+        showUserLocation
+        fullscreen
+      >
+        <CourseLayer
+          map={mapInstance}
+          controls={generatedControls}
+          activeControlSequence={currentCpIndex}
+        />
+      </MapView>
+
+      {/* Countdown Overlay */}
+      {countdown !== null && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            backgroundColor: "rgba(10, 14, 23, 0.9)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "6rem",
+              fontWeight: 800,
+              color: "var(--color-accent)",
+              animation: "pulse 0.8s ease infinite",
+            }}
+          >
+            {countdown > 0 ? countdown : "MULAI!"}
+          </div>
+        </div>
+      )}
+
+      {/* Top HUD Overlay (Timer, CP Counter, Sync Status) */}
+      <div className="training-hud">
+        <div className="training-hud-chip">
+          <span className="text-metric" style={{ fontSize: "1.5rem" }}>
+            {formatDuration(elapsedSeconds)}
+          </span>
+        </div>
+
+        <div className="training-hud-chip">
+          <span className="badge badge-warning" style={{ fontSize: "0.875rem" }}>
+            Pos {currentCpIndex} / {totalCps}
+          </span>
+        </div>
+
+        <div className="training-hud-chip">
+          <span
+            className={`badge ${connectionStatus === "online" ? "badge-success" : "badge-neutral"}`}
+          >
+            {connectionStatus === "online" ? "Online" : "Offline"}
+          </span>
+        </div>
+      </div>
+
+      {/* Bottom Primary Action Button */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: "var(--space-6)",
+          left: "var(--space-4)",
+          right: "var(--space-4)",
+          zIndex: 70,
+        }}
+      >
+        {sessionState.status === "ready" ? (
+          <button
+            className="btn btn-primary btn-lg btn-full"
+            onClick={handleStartCountdown}
+            style={{ fontSize: "1.25rem", height: 60 }}
+          >
+            ▶ Mulai Latihan
+          </button>
+        ) : sessionState.status === "active" ? (
+          <button
+            className={`btn ${isLastCp ? "btn-danger" : "btn-primary"} btn-lg btn-full`}
+            onClick={handleConfirmControl}
+            style={{ fontSize: "1.25rem", height: 64, boxShadow: "var(--shadow-lg)" }}
+          >
+            {isLastCp ? "✔ Pos Terakhir & Selesai!" : `✔ Confirm Pos CP ${currentCpIndex}`}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
